@@ -101,14 +101,6 @@ const StopButton = styled(BaseButton)`
   }
 `;
 
-const RestartButton = styled(BaseButton)`
-  background-color: #007bff;
-  color: white;
-  &:hover:not(:disabled) {
-    background-color: #0056b3;
-  }
-`;
-
 // --- Modal Styled Components ---
 const ModalOverlay = styled.div`
   position: fixed;
