@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import { GlobalStyle } from "./styles/GlobalStyle";
+import { GlobalStyle } from "./styles/GlobalStyle"; // パスが正しいか確認してください
 
 // --- Styled Components Definition ---
 
@@ -14,6 +14,7 @@ const AppContainer = styled.div`
   text-align: center;
   font-family: "Yu Gothic", "Hiragino Kaku Gothic Pro", "Noto Sans JP",
     sans-serif;
+  position: relative; // モーダルの親要素として
 `;
 
 const FixedTitle = styled.h1`
@@ -38,7 +39,7 @@ const TextDisplayArea = styled.textarea`
   color: #333;
 
   &:read-only {
-    background-color: #efefef;
+    background-color: #e9ecef;
     color: #555;
   }
 
@@ -47,52 +48,25 @@ const TextDisplayArea = styled.textarea`
   }
 `;
 
-const ControlsAndResultsWrapper = styled.div`
+const ControlsWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%; // ラッパーが幅を持つように
-`;
-
-// ボタンと「計測中」メッセージのためのエリア
-const ActionArea = styled.div`
-  margin-bottom: 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* min-height を削除 */
+  width: 100%;
 `;
 
 const ButtonContainer = styled.div`
-  margin-bottom: 10px; // 「計測中」メッセージとの間隔
-`;
-
-const ResultsContainer = styled.div`
+  margin-bottom: 10px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  margin-bottom: 15px; // 下に続く要素がない場合は不要になる可能性もある
-`;
-
-const ResultsArea = styled.div`
-  padding: 15px;
-  background-color: #f0f8ff;
-  border-radius: 8px;
-  margin-bottom: 15px; // リスタートボタンとのマージン
-  width: 100%;
-  box-sizing: border-box;
-`;
-
-const ResultItem = styled.p`
-  font-size: 18px;
-  color: #333;
-  margin: 8px 0;
+  gap: 10px;
+  justify-content: center;
 `;
 
 const Message = styled.p`
   font-size: 16px;
   color: #555;
+  min-height: 24px;
+  margin-top: 5px;
 `;
 
 const BaseButton = styled.button`
@@ -130,59 +104,161 @@ const StopButton = styled(BaseButton)`
 const RestartButton = styled(BaseButton)`
   background-color: #007bff;
   color: white;
-  /* margin-top: 0; // ActionArea や ResultsContainer の margin で制御するため、個別マージンは不要 */
   &:hover:not(:disabled) {
     background-color: #0056b3;
   }
 `;
 
-// --- App Component ---
+// --- Modal Styled Components ---
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
 
+const ModalContent = styled.div`
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  text-align: left;
+`;
+
+const ModalTitle = styled.h2`
+  font-size: 24px;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 20px;
+  text-align: center;
+`;
+
+const ModalResultItem = styled.p`
+  font-size: 18px;
+  color: #333;
+  margin: 10px 0;
+  line-height: 1.6;
+`;
+
+const ModalComment = styled(ModalResultItem)`
+  font-style: italic;
+  color: #555;
+  background-color: #f9f9f9;
+  padding: 10px;
+  border-radius: 6px;
+`;
+
+const ModalCloseButton = styled(BaseButton)`
+  background-color: #6c757d;
+  color: white;
+  display: block; // ボタンをブロック要素にして中央揃えしやすくする
+  margin: 25px auto 0; // 上マージンと左右autoで中央揃え
+  &:hover:not(:disabled) {
+    background-color: #5a6268;
+  }
+`;
+
+// --- Result Data Interface (Optional but good practice) ---
+interface ResultData {
+  time: number;
+  speed: number;
+  comment: string;
+}
+
+// --- App Component ---
 export const App: React.FC = () => {
-  const [text, setText] = useState<string>("");
+  const [text, setText] = useState<string>(""); // ユーザーが入力するテキスト
   const [isReading, setIsReading] = useState<boolean>(false);
-  const [isFinished, setIsFinished] = useState<boolean>(false);
+  const [isFinished, setIsFinished] = useState<boolean>(false); // 計測が完了したか
   const [startTime, setStartTime] = useState<number>(0);
 
-  const [readingTimeSec, setReadingTimeSec] = useState<number>(0);
-  const [readingSpeedCPM, setReadingSpeedCPM] = useState<number>(0);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [resultData, setResultData] = useState<ResultData | null>(null);
 
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // 結果表示後（モーダル表示中）や計測中はテキストエリアの編集をさせない
     if (isReading || isFinished) return;
     setText(event.target.value);
   };
 
   const handleStart = () => {
     if (!text.trim()) return;
+    // 既存の結果表示関連のstateをリセット
+    setIsFinished(false);
+    setIsModalOpen(false);
+    setResultData(null);
+
     setStartTime(Date.now());
     setIsReading(true);
-    setIsFinished(false);
-    setReadingTimeSec(0);
-    setReadingSpeedCPM(0);
   };
 
   const handleStop = () => {
     const currentEndTime = Date.now();
     setIsReading(false);
-    setIsFinished(true);
+    setIsFinished(true); // 計測完了状態にする
 
     const durationSec = (currentEndTime - startTime) / 1000;
     const durationMin = durationSec / 60;
     const charCount = text.length;
     const cpm = durationMin > 0 ? Math.round(charCount / durationMin) : 0;
 
-    setReadingTimeSec(Math.round(durationSec));
-    setReadingSpeedCPM(cpm);
+    let commentText = "";
+    if (cpm === 0 && charCount > 0) {
+      commentText = "測定時間が短すぎるか、エラーが発生した可能性があります。";
+    } else if (charCount === 0) {
+      commentText = "テキストが入力されていませんでした。";
+    } else if (cpm <= 300) {
+      commentText =
+        "ゆっくり着実に読めていますね。\nまずは内容を理解することから始めましょう。";
+    } else if (cpm <= 500) {
+      commentText =
+        "良いペースです。\nJLPT N3～N2レベルの読解に近づいています。\nさらに練習して速度アップを目指しましょう！";
+    } else if (cpm <= 700) {
+      commentText =
+        "素晴らしい読書速度です！\nJLPT N1レベルの読解も視野に入ってきますね。\nより複雑な文章にも対応できるでしょう。";
+    } else {
+      commentText =
+        "非常に速い読書速度です！\nネイティブスピーカーに近いレベルかもしれません。\n素晴らしいです！";
+    }
+
+    setResultData({
+      time: Math.round(durationSec),
+      speed: cpm,
+      comment: commentText,
+    });
+    setIsModalOpen(true);
   };
 
-  const handleRestart = () => {
-    setText("");
-    setIsReading(false);
-    setIsFinished(false);
+  const closeModalAndRestart = () => {
+    setIsModalOpen(false);
+    setIsFinished(false); // 「もう一度」ボタンなので、完了状態も解除
+    setText(""); // テキストエリアをクリア
+    setResultData(null);
     setStartTime(0);
-    setReadingTimeSec(0);
-    setReadingSpeedCPM(0);
   };
+
+  // Escキーでモーダルを閉じる
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (isModalOpen) {
+          closeModalAndRestart();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [isModalOpen]); // isModalOpen を依存配列に追加
 
   return (
     <>
@@ -194,39 +270,68 @@ export const App: React.FC = () => {
           placeholder="ここに文章を貼り付けてください..."
           value={text}
           onChange={handleTextChange}
-          readOnly={isReading || isFinished}
+          readOnly={isReading || isFinished} // 計測中または結果表示待ちの間は読み取り専用
         />
 
-        <ControlsAndResultsWrapper>
-          {/* スタート・ストップボタンと計測中メッセージ */}
-          {!isFinished && ( // 計測終了時はこのエリア全体を非表示
-            <ActionArea>
-              <ButtonContainer>
-                {!isReading ? (
-                  <StartButton onClick={handleStart} disabled={!text.trim()}>
-                    スタート
-                  </StartButton>
-                ) : (
-                  <StopButton onClick={handleStop}>ストップ</StopButton>
-                )}
-              </ButtonContainer>
-              {isReading && <Message>▶ 計測中…</Message>}
-            </ActionArea>
-          )}
+        <ControlsWrapper>
+          <ButtonContainer>
+            {/* 「もう一度」ボタンはモーダル内に配置するか、モーダルが閉じた後に表示するか検討 */}
+            {/* ここでは、メイン画面にはスタート/ストップのみ表示し、リスタートはモーダル経由とする */}
+            {!isReading && !isFinished && (
+              <StartButton onClick={handleStart} disabled={!text.trim()}>
+                スタート
+              </StartButton>
+            )}
+            {isReading && (
+              <StopButton onClick={handleStop}>ストップ</StopButton>
+            )}
+            {/* 結果表示後は、モーダル内のボタンで操作を促す */}
+            {isFinished && !isReading && !isModalOpen && (
+              // モーダルが閉じた後、再度挑戦できるように「もう一度（スタート）」ボタンを表示するイメージ
+              // ただし、状態管理が複雑になるため、今回はモーダル内の閉じるボタン＝リスタートとする
+              // もしモーダル外に「もう一度」を置くなら、closeModalAndRestartとは別の関数で isModalOpen のみ false にする
+              <StartButton onClick={handleStart} disabled={!text.trim()}>
+                もう一度スタート
+              </StartButton>
+            )}
+          </ButtonContainer>
+          <Message>
+            {isReading && "▶ 計測中…"}
+            {isFinished &&
+              !isModalOpen &&
+              "結果ダイアログを閉じました。もう一度挑戦できます。"}
+          </Message>
+        </ControlsWrapper>
 
-          {/* 結果表示とリスタートボタン */}
-          {isFinished && (
-            <ResultsContainer>
-              <ResultsArea>
-                <ResultItem>読了時間：{readingTimeSec} 秒</ResultItem>
-                <ResultItem>
-                  読了速度：{readingSpeedCPM.toLocaleString()} CPM（文字/分）
-                </ResultItem>
-              </ResultsArea>
-              <RestartButton onClick={handleRestart}>もう一度</RestartButton>
-            </ResultsContainer>
-          )}
-        </ControlsAndResultsWrapper>
+        {isModalOpen && resultData && (
+          <ModalOverlay onClick={closeModalAndRestart}>
+            {" "}
+            {/* オーバーレイクリックでも閉じる */}
+            <ModalContent onClick={(e) => e.stopPropagation()}>
+              {" "}
+              {/* モーダル内のクリックは伝播させない */}
+              <ModalTitle>測定結果</ModalTitle>
+              <ModalResultItem>
+                読了時間： {resultData.time.toLocaleString()} 秒
+              </ModalResultItem>
+              <ModalResultItem>
+                読了速度： {resultData.speed.toLocaleString()} CPM（文字/分）
+              </ModalResultItem>
+              <ModalComment>
+                {/* コメント内の改行を <br /> に変換 */}
+                {resultData.comment.split("\n").map((line, index, arr) => (
+                  <React.Fragment key={index}>
+                    {line}
+                    {index < arr.length - 1 && <br />}
+                  </React.Fragment>
+                ))}
+              </ModalComment>
+              <ModalCloseButton onClick={closeModalAndRestart}>
+                閉じてリスタート
+              </ModalCloseButton>
+            </ModalContent>
+          </ModalOverlay>
+        )}
       </AppContainer>
     </>
   );
