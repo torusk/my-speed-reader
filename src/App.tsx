@@ -49,13 +49,24 @@ const TextDisplayArea = styled.textarea`
 `;
 
 // 追加: 文字数表示用スタイル
-const CharCountText = styled.div`
+const CharCountWrapper = styled.div`
   width: 100%;
   text-align: right;
-  font-size: 14px;
-  color: #666;
   margin-bottom: 15px;
   padding: 0 5px;
+`;
+
+const CountNumber = styled.span<{ $hasText: boolean }>`
+  font-size: ${({ $hasText }) => ($hasText ? "18px" : "14px")};
+  color: ${({ $hasText }) => ($hasText ? "#dc3545" : "#666")};
+  font-weight: ${({ $hasText }) => ($hasText ? "bold" : "normal")};
+  transition: all 0.2s ease;
+`;
+
+const CountDescription = styled.span`
+  font-size: 12px;
+  color: #666;
+  margin-left: 4px;
 `;
 
 const ControlsWrapper = styled.div`
@@ -276,19 +287,22 @@ export const App: React.FC = () => {
     <>
       <GlobalStyle />
       <AppContainer>
-        <FixedTitle>速読トレーニング</FixedTitle>
+        <FixedTitle>速読練習・文字カウント</FixedTitle>
 
         <TextDisplayArea
-          placeholder="ここに文章を貼り付けてください..."
+          placeholder="ここに文章を貼り付けてください。自動で文字数をカウントします"
           value={text}
           onChange={handleTextChange}
           readOnly={isReading || isFinished}
         />
 
         {/* 追加: リアルタイム文字数表示 */}
-        <CharCountText>
-          {text.length.toLocaleString()} 文字（スペース・改行含む）
-        </CharCountText>
+        <CharCountWrapper>
+          <CountNumber $hasText={text.length > 0}>
+            {text.length.toLocaleString()}
+          </CountNumber>
+          <CountDescription>文字（スペース・改行含む）</CountDescription>
+        </CharCountWrapper>
 
         <ControlsWrapper>
           <ButtonContainer>
