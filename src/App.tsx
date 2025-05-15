@@ -33,7 +33,7 @@ const TextDisplayArea = styled.textarea`
   font-size: 16px;
   line-height: 1.7;
   resize: none;
-  margin-bottom: 20px;
+  margin-bottom: 10px; // 文字数表示領域のスペース確保
   box-sizing: border-box;
   background-color: #f9f9f9;
   color: #333;
@@ -46,6 +46,16 @@ const TextDisplayArea = styled.textarea`
   &::placeholder {
     color: #aaa;
   }
+`;
+
+// 追加: 文字数表示用スタイル
+const CharCountText = styled.div`
+  width: 100%;
+  text-align: right;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+  padding: 0 5px;
 `;
 
 const ControlsWrapper = styled.div`
@@ -203,22 +213,32 @@ export const App: React.FC = () => {
     const cpm = durationMin > 0 ? Math.round(charCount / durationMin) : 0;
 
     let commentText = "";
+    let rankName = "";
+
     if (cpm === 0 && charCount > 0) {
       commentText = "測定時間が短すぎるか、エラーが発生した可能性があります。";
+      rankName = "測定エラー";
     } else if (charCount === 0) {
       commentText = "テキストが入力されていませんでした。";
-    } else if (cpm <= 300) {
-      commentText =
-        "ゆっくり着実に読めていますね。\nまずは内容を理解することから始めましょう。";
+      rankName = "未入力";
+    } else if (cpm <= 200) {
+      rankName = "非常に遅い";
+      commentText = `【${rankName}】\n読み始めたばかりの方にはよくある速度です。\n単語を一つずつ確実に理解しながら、少しずつ読む量を増やしてみましょう。\nJLPT N5〜N4レベルのテキストで練習するのがおすすめです！`;
+    } else if (cpm <= 350) {
+      rankName = "ゆっくり";
+      commentText = `【${rankName}】\n初級者に適したペースです。\n文法構造を意識しながら、文節ごとに理解する練習を続けましょう。\nN4〜N3レベルの問題集で段階的にレベルアップ！`;
     } else if (cpm <= 500) {
-      commentText =
-        "良いペースです。\nJLPT N3～N2レベルの読解に近づいています。\nさらに練習して速度アップを目指しましょう！";
-    } else if (cpm <= 700) {
-      commentText =
-        "素晴らしい読書速度です！\nJLPT N1レベルの読解も視野に入ってきますね。\nより複雑な文章にも対応できるでしょう。";
+      rankName = "普通";
+      commentText = `【${rankName}】\n中級者の標準的な速度です！\n長文に慣れるため、接続詞や段落の関係に注目しましょう。\nN3〜N2レベルの読解問題に挑戦してみてください。`;
+    } else if (cpm <= 650) {
+      rankName = "やや速い";
+      commentText = `【${rankName}】\n上級者レベルの読解速度です！\nニュース記事やエッセイなど、様々なジャンルの文章に触れましょう。\nN2〜N1対策用の長文問題が効果的です。`;
+    } else if (cpm <= 800) {
+      rankName = "速い";
+      commentText = `【${rankName}】\nN1合格を視野に入れられる速度です！\n複雑な論理展開にも対応できるよう、要約練習を取り入れてみましょう。`;
     } else {
-      commentText =
-        "非常に速い読書速度です！\nネイティブスピーカーに近いレベルかもしれません。\n素晴らしいです！";
+      rankName = "非常に速い";
+      commentText = `【${rankName}】\nネイティブ並みの読解力！\n専門書や文学作品など、高度な日本語表現にも挑戦してみてください。`;
     }
 
     setResultData({
@@ -262,13 +282,16 @@ export const App: React.FC = () => {
           placeholder="ここに文章を貼り付けてください..."
           value={text}
           onChange={handleTextChange}
-          readOnly={isReading || isFinished} // 計測中または結果表示待ちの間は読み取り専用
+          readOnly={isReading || isFinished}
         />
+
+        {/* 追加: リアルタイム文字数表示 */}
+        <CharCountText>
+          {text.length.toLocaleString()} 文字（スペース・改行含む）
+        </CharCountText>
 
         <ControlsWrapper>
           <ButtonContainer>
-            {/* 「もう一度」ボタンはモーダル内に配置するか、モーダルが閉じた後に表示するか検討 */}
-            {/* ここでは、メイン画面にはスタート/ストップのみ表示し、リスタートはモーダル経由とする */}
             {!isReading && !isFinished && (
               <StartButton onClick={handleStart} disabled={!text.trim()}>
                 スタート
@@ -277,11 +300,7 @@ export const App: React.FC = () => {
             {isReading && (
               <StopButton onClick={handleStop}>ストップ</StopButton>
             )}
-            {/* 結果表示後は、モーダル内のボタンで操作を促す */}
             {isFinished && !isReading && !isModalOpen && (
-              // モーダルが閉じた後、再度挑戦できるように「もう一度（スタート）」ボタンを表示するイメージ
-              // ただし、状態管理が複雑になるため、今回はモーダル内の閉じるボタン＝リスタートとする
-              // もしモーダル外に「もう一度」を置くなら、closeModalAndRestartとは別の関数で isModalOpen のみ false にする
               <StartButton onClick={handleStart} disabled={!text.trim()}>
                 もう一度スタート
               </StartButton>
@@ -297,11 +316,7 @@ export const App: React.FC = () => {
 
         {isModalOpen && resultData && (
           <ModalOverlay onClick={closeModalAndRestart}>
-            {" "}
-            {/* オーバーレイクリックでも閉じる */}
             <ModalContent onClick={(e) => e.stopPropagation()}>
-              {" "}
-              {/* モーダル内のクリックは伝播させない */}
               <ModalTitle>測定結果</ModalTitle>
               <ModalResultItem>
                 読了時間： {resultData.time.toLocaleString()} 秒
@@ -310,7 +325,6 @@ export const App: React.FC = () => {
                 読了速度： {resultData.speed.toLocaleString()} CPM（文字/分）
               </ModalResultItem>
               <ModalComment>
-                {/* コメント内の改行を <br /> に変換 */}
                 {resultData.comment.split("\n").map((line, index, arr) => (
                   <React.Fragment key={index}>
                     {line}
